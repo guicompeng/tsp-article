@@ -84,10 +84,10 @@ data;
 
    Reinelt, G.: TSPLIB - A travelling salesman problem library.
    ORSA-Journal of the Computing 3 (1991) 376-84;
-   http://elib.zib.de/pub/Packages/mp-testdata/tsp/tsplib */
+   http://elib.zib.de/pub/Packages/mp-testdata/tsp/tsplib 
 
    Coordinates 23 and 24 are not from the source,
-   arbitrary values ​​were chosen to increase complexity.
+   arbitrary values ​​were chosen to increase complexity. */
 
 /* The optimal solution is 7119 */
 
