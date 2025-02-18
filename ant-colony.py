@@ -1,4 +1,4 @@
-import csv, pdb, math, random
+import csv, math, random
 import numpy as np
 
 # Lista para armazenar as cidades
@@ -6,112 +6,107 @@ cidades = []
 
 # Parâmetros do algoritmo
 maxIteracoes = 2000
-alfa = 2
-beta = 2
-melhorCaminho = []
-taxaEvaporacao = 0.4
+alfa = 1
+beta = 1
+taxaEvaporacao = 0.5
 Q = 1
+melhorCaminho = []
 
-class Probabilidade:
-    def __init__(self, cidade, chance):
-        self.cidade = cidade
-        self.chance = chance
+def convert_to_radians(value):
+    PI = 3.141592
+    deg = int(value)
+    min_part = value - deg
+    rad = PI * (deg + 5.0 * min_part / 3.0) / 180.0
+    return rad
 
-    def __str__(self):
-        return str(self.cidade) + "(" + str(self.chance) + "),"
 
 class Cidade:
     def __init__(self, x, y):
         self.x = float(x)
         self.y = float(y)
 
-    def __str__(self):
-        return "x=" + str(self.x) + ",y=" + str(self.y)
-
 class Formiga:
     def __init__(self, cidadeInicial):
-        self.cidade = cidadeInicial
+        self.cidadeInicial = cidadeInicial
         self.cidadeAtual = cidadeInicial
         self.solucaoParcial = [cidadeInicial]
         self.tamanhoRota = 0
-        self.probabilidades = []
+        
 
     def distancia(self, cidade1, cidade2):
-        # Calcula a distância euclidiana entre duas cidades
-        return math.sqrt((cidade2.x - cidade1.x)**2 + (cidade2.y - cidade1.y)**2)
+        lat1 = convert_to_radians(cidade1.x)
+        lon1 = convert_to_radians(cidade1.y)
+        lat2 = convert_to_radians(cidade2.x)
+        lon2 = convert_to_radians(cidade2.y)
+        
+        RRR = 6378.388
+        q1 = math.cos(lon1 - lon2)
+        q2 = math.cos(lat1 - lat2)
+        q3 = math.cos(lat1 + lat2)
+        dij = int(RRR * math.acos(0.5 * ((1.0 + q1) * q2 - (1.0 - q1) * q3)) + 1.0)
+        return dij
 
     def escolherCidade(self):
-        self.probabilidades = []
+        probabilidades = []
         somatorio = 0
-        for i in range(0, len(cidades)):
+        for i in range(len(cidades)):
             if i not in self.solucaoParcial:
-                somatorio += feromonio[self.cidade][i]**alfa * (1 / self.distancia(cidades[self.cidade], cidades[i])**beta)
+                valor = feromonio[self.cidadeAtual][i]**alfa * (1 / self.distancia(cidades[self.cidadeAtual], cidades[i])**beta)
+                probabilidades.append((i, valor))
+                somatorio += valor
+        
+        if not probabilidades:
+            return
+        
+        roleta = random.uniform(0, somatorio)
+        acumulado = 0
+        for cidade, prob in probabilidades:
+            acumulado += prob
+            if roleta <= acumulado:
+                self.tamanhoRota += self.distancia(cidades[self.cidadeAtual], cidades[cidade])
+                self.solucaoParcial.append(cidade)
+                self.cidadeAtual = cidade
+                return
 
-        for i in range(0, len(cidades)):
-            if i not in self.solucaoParcial:
-                probabilidade = (feromonio[self.cidade][i]**alfa * (1 / self.distancia(cidades[self.cidade], cidades[i])**beta) / somatorio)
-                self.probabilidades.append(Probabilidade(i, probabilidade))
-
-        roleta = random.uniform(0, 1)
-        somatorio = 0
-        for i in range(0, len(self.probabilidades)):
-            somatorio += self.probabilidades[i].chance
-            if roleta < somatorio:
-                self.tamanhoRota += self.distancia(cidades[self.cidadeAtual], cidades[self.probabilidades[i].cidade])
-                self.solucaoParcial.append(self.probabilidades[i].cidade)
-                self.cidadeAtual = self.probabilidades[i].cidade
-                return i
+    def completarCiclo(self):
+        if len(self.solucaoParcial) == len(cidades):
+            self.tamanhoRota += self.distancia(cidades[self.cidadeAtual], cidades[self.cidadeInicial])
+            self.solucaoParcial.append(self.cidadeInicial)
 
 # Leitura do arquivo CSV e criação das cidades
 with open('Colonia.csv', newline='') as csvfile:
     leitor_csv = csv.reader(csvfile, delimiter=' ', quotechar='|')
-    header = next(leitor_csv)
+    next(leitor_csv)
     for row in leitor_csv:
-        x = row[0].split(';')[1].replace("['", "").replace("']", "")
-        y = row[0].split(';')[2].replace("['", "").replace("']", "")
+        x, y = row[0].split(';')[1:3]
         cidades.append(Cidade(x, y))
-
 
 # Inicialização da matriz de feromônio
 feromonio = np.ones((len(cidades), len(cidades)))
-
 menorRota = math.inf
 
 # Loop principal do algoritmo
-for iteracao in range(0, maxIteracoes):
-    # Criação das formigas
-    formigas = []
-    for i in range(0, len(cidades)):
-        formigas.append(Formiga(i))
-
-    print("Iteração " + str(iteracao) + " - melhor:  " + str(menorRota))
-
-    # Inicialização da matriz de delta de feromônio
+for iteracao in range(maxIteracoes):
+    formigas = [Formiga(i) for i in range(len(cidades))]
     deltaFeromonio = np.zeros((len(cidades), len(cidades)))
-
-    # Criar rota para cada formiga
-    for c in range(0, len(cidades)):
-        for formiga in formigas:
-            formiga.escolherCidade()
-
-    # Atualizar a melhor rota encontrada
+    
     for formiga in formigas:
+        while len(formiga.solucaoParcial) < len(cidades):
+            formiga.escolherCidade()
+        formiga.completarCiclo()
+        
         if formiga.tamanhoRota < menorRota:
             menorRota = formiga.tamanhoRota
-            melhorCaminho = formiga.solucaoParcial
+            melhorCaminho = formiga.solucaoParcial[:]
+        
+        for j in range(len(formiga.solucaoParcial) - 1):
+            deltaFeromonio[formiga.solucaoParcial[j]][formiga.solucaoParcial[j + 1]] += Q / formiga.tamanhoRota
+    
+    # Atualização do feromônio
+    feromonio = (1 - taxaEvaporacao) * feromonio + deltaFeromonio
+    
+    print(f"Iteração {iteracao} - Melhor Rota: {menorRota}")
 
-    # Atualizar a matriz de delta de feromônio
-    for formiga in formigas:
-        for j in range(0, len(formiga.solucaoParcial) - 1):
-            deltaFeromonio[formiga.solucaoParcial[j + 1]][formiga.solucaoParcial[j]] += Q / formiga.tamanhoRota
-
-    # Atualizar a matriz de feromônio
-    for i in range(0, len(cidades)):
-        for j in range(0, len(cidades)):
-            feromonio[i][j] = (1 - taxaEvaporacao) * feromonio[i][j] + deltaFeromonio[i][j]
-
-# Exibir o melhor caminho encontrado
-print("Menor rota: " + str(menorRota))
-
-melhorCaminho = [cidade + 1 for cidade in melhorCaminho]
-print("Melhor caminho: " + str(melhorCaminho))
+# Exibição do melhor caminho encontrado
+print(f"Rota aproximada encontrada: {menorRota}")
+print(f"Caminho: {[cidade + 1 for cidade in melhorCaminho]}")
